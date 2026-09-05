@@ -1,0 +1,6 @@
+{
+  "name": "Health Widget",
+  "description": "10-minute eye-care timer app and adaptive home-screen widget.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

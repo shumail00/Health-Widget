@@ -1,0 +1,26 @@
+<resources>
+    <string name="app_name">Health Widget</string>
+    <string name="widget_name">Eye Care Timer</string>
+    <string name="widget_description">10-minute eye care timer widget for tablets and phones</string>
+    <string name="timer_title">10-Minute Eye Care Timer</string>
+    <string name="timer_subtitle">Take regular breaks to protect your vision and reduce digital eye strain.</string>
+    <string name="state_ready">Ready</string>
+    <string name="state_running">Running</string>
+    <string name="state_finished">Finished</string>
+    <string name="action_start">Start 10m Timer</string>
+    <string name="action_cancel">Cancel Timer</string>
+    <string name="action_reset">Reset</string>
+    <string name="action_open_app">Open App</string>
+    <string name="notification_channel_name">Eye Care Timer</string>
+    <string name="notification_channel_description">Notifications when your 10-minute eye care timer completes.</string>
+    <string name="notification_title">10 Minutes Finished!</string>
+    <string name="notification_text">Time for an eye break. Look at an object 20 feet away for at least 20 seconds.</string>
+    <string name="permission_notification_title">Notification Permission</string>
+    <string name="permission_notification_desc">Enable notifications so you get alerted when your 10-minute timer completes.</string>
+    <string name="permission_notification_button">Enable Notifications</string>
+    <string name="permission_alarm_title">Exact Alarm Permission</string>
+    <string name="permission_alarm_desc">Allow exact alarms to ensure the timer rings at the exact second even when your device is idle.</string>
+    <string name="permission_alarm_button">Allow Exact Alarms</string>
+    <string name="widget_tip_title">Home Screen Widget</string>
+    <string name="widget_tip_desc">Add the 4x2 widget to your home screen for quick 1-tap eye break timers anytime.</string>
+</resources>

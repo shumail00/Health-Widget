@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Notification permission for Android 13+ -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Alarm permissions for exact 10-minute eye care alerts -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+
+    <!-- Haptic vibration on timer completion -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <!-- Wake lock for timely alarm delivery while device is idle -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!-- Restore or reconcile timer on device reboot -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <application
+        android:name=".HealthWidgetApplication"
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.HealthWidget">
+
+        <activity
+            android:name=".ui.MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Alarm receiver for 10-minute timer completion -->
+        <receiver
+            android:name=".alarm.TimerAlarmReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.shumail.healthwidget.ACTION_TIMER_FINISHED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Reconcile timer if device restarts -->
+        <receiver
+            android:name=".alarm.BootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Glance AppWidget Receiver -->
+        <receiver
+            android:name=".widget.EyeCareWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/eye_care_widget_info" />
+        </receiver>
+
+    </application>
+
+</manifest>

@@ -1,0 +1,22 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="300dp"
+    android:height="150dp"
+    android:viewportWidth="300"
+    android:viewportHeight="150">
+    <!-- Card Background -->
+    <path
+        android:fillColor="#1C2A28"
+        android:pathData="M16,0 L284,0 A16,16 0 0 1 300,16 L300,134 A16,16 0 0 1 284,150 L16,150 A16,16 0 0 1 0,134 L0,16 A16,16 0 0 1 16,0 Z"/>
+    <!-- Inner Accent Header Bar -->
+    <path
+        android:fillColor="#006A60"
+        android:pathData="M24,24 L130,24 A6,6 0 0 1 136,30 L136,36 A6,6 0 0 1 130,42 L24,42 A6,6 0 0 1 18,36 L18,30 A6,6 0 0 1 24,24 Z"/>
+    <!-- Timer Display placeholder -->
+    <path
+        android:fillColor="#5FE5D2"
+        android:pathData="M24,60 L180,60 A8,8 0 0 1 188,68 L188,96 A8,8 0 0 1 180,104 L24,104 A8,8 0 0 1 16,96 L16,68 A8,8 0 0 1 24,60 Z"/>
+    <!-- Button outline -->
+    <path
+        android:fillColor="#73F8E6"
+        android:pathData="M200,64 L280,64 A12,12 0 0 1 292,76 L292,92 A12,12 0 0 1 280,104 L200,104 A12,12 0 0 1 188,92 L188,76 A12,12 0 0 1 200,64 Z"/>
+</vector>
