@@ -5,7 +5,6 @@ import android.content.SharedPreferences
 import com.shumail.healthwidget.alarm.TimerAlarmManager
 import com.shumail.healthwidget.model.TimerModel
 import com.shumail.healthwidget.model.TimerStatus
-import com.shumail.healthwidget.notification.NotificationHelper
 import com.shumail.healthwidget.widget.EyeCareWidget
 import androidx.glance.appwidget.updateAll
 import kotlinx.coroutines.CoroutineScope
@@ -26,7 +25,6 @@ class TimerRepository private constructor(private val context: Context) {
     private val scope = CoroutineScope(Dispatchers.IO)
 
     init {
-        // Synchronize on startup
         refresh()
     }
 
@@ -35,7 +33,6 @@ class TimerRepository private constructor(private val context: Context) {
         val model = loadTimerModel()
         val effectiveStatus = model.getEffectiveStatus()
         if (model.status == TimerStatus.RUNNING && effectiveStatus == TimerStatus.FINISHED) {
-            // Auto-transition to FINISHED state
             val finishedModel = model.copy(status = TimerStatus.FINISHED)
             saveTimerModel(finishedModel)
             _timerFlow.value = finishedModel
@@ -52,7 +49,6 @@ class TimerRepository private constructor(private val context: Context) {
     @Synchronized
     fun startTimer(durationMillis: Long = TimerModel.DEFAULT_DURATION_MILLIS): TimerModel {
         val current = getTimerModel()
-        // Prevent accidental restart if already running with remaining time
         if (current.getEffectiveStatus() == TimerStatus.RUNNING && current.remainingMillis() > 0L) {
             return current
         }
@@ -68,10 +64,7 @@ class TimerRepository private constructor(private val context: Context) {
         saveTimerModel(newModel)
         _timerFlow.value = newModel
 
-        // Schedule exact/inexact background alarm
-        TimerAlarmManager.scheduleTimerAlarm(context, finishTime)
-
-        // Update widget
+        TimerAlarmManager.scheduleAquawellTimerAlarm(context, finishTime, 0)
         updateWidgets()
 
         return newModel
@@ -79,8 +72,7 @@ class TimerRepository private constructor(private val context: Context) {
 
     @Synchronized
     fun cancelTimer(): TimerModel {
-        TimerAlarmManager.cancelTimerAlarm(context)
-        NotificationHelper.dismissNotification(context)
+        TimerAlarmManager.cancelAquawellTimerAlarm(context)
 
         val newModel = TimerModel(
             status = TimerStatus.READY,
@@ -97,7 +89,7 @@ class TimerRepository private constructor(private val context: Context) {
 
     @Synchronized
     fun finishTimer(): TimerModel {
-        TimerAlarmManager.cancelTimerAlarm(context)
+        TimerAlarmManager.cancelAquawellTimerAlarm(context)
 
         val current = loadTimerModel()
         val newModel = current.copy(status = TimerStatus.FINISHED)
@@ -118,7 +110,6 @@ class TimerRepository private constructor(private val context: Context) {
             try {
                 EyeCareWidget().updateAll(context)
             } catch (_: Exception) {
-                // Widget might not be placed yet or glance update failed
             }
         }
     }

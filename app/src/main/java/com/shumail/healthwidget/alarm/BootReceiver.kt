@@ -3,28 +3,39 @@ package com.shumail.healthwidget.alarm
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import com.shumail.healthwidget.data.TimerRepository
-import com.shumail.healthwidget.model.TimerStatus
+import com.shumail.healthwidget.data.MedicationRepository
+import com.shumail.healthwidget.model.ActiveTimerStatus
 import com.shumail.healthwidget.notification.NotificationHelper
 
 class BootReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent?) {
         if (intent?.action == Intent.ACTION_BOOT_COMPLETED) {
-            val repository = TimerRepository.getInstance(context)
-            val timer = repository.getTimerModel()
+            val repository = MedicationRepository.getInstance(context)
+            val timer = repository.getActiveTimer()
             val now = System.currentTimeMillis()
 
-            if (timer.status == TimerStatus.RUNNING) {
+            if (timer.status == ActiveTimerStatus.RUNNING) {
                 if (now >= timer.finishTimeMillis) {
-                    repository.finishTimer()
-                    NotificationHelper.showTimerFinishedNotification(context)
+                    repository.reconcileActiveTimer()
+                    NotificationHelper.showAquawellDueNotification(context, timer.aquawellDoseIndex, isFromTimer = true)
+                    TimerAlarmManager.scheduleAquawellRepeatAlarm(
+                        context,
+                        System.currentTimeMillis() + 5 * 60 * 1000L,
+                        timer.aquawellDoseIndex
+                    )
                 } else {
-                    // Reschedule alarm for remaining duration
-                    TimerAlarmManager.scheduleTimerAlarm(context, timer.finishTimeMillis)
-                    repository.updateWidgets()
+                    TimerAlarmManager.scheduleAquawellTimerAlarm(
+                        context,
+                        timer.finishTimeMillis,
+                        timer.aquawellDoseIndex
+                    )
                 }
             }
+
+            // Reschedule today's remaining alarms
+            repository.scheduleUpcomingAlarms()
+            repository.updateWidgets()
         }
     }
 }

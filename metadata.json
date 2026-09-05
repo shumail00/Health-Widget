@@ -1,6 +1,6 @@
 {
   "name": "Health Widget",
-  "description": "10-minute eye-care timer app and adaptive home-screen widget.",
+  "description": "Personal eye-medication reminder app and 2x2 home-screen widget with automated 10-minute drop intervals and course expiration tracking.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

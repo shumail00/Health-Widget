@@ -12,8 +12,8 @@ import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
 import androidx.glance.Image
 import androidx.glance.ImageProvider
-import androidx.glance.LocalSize
 import androidx.glance.action.ActionParameters
+import androidx.glance.action.actionParametersOf
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
@@ -28,7 +28,6 @@ import androidx.glance.layout.Box
 import androidx.glance.layout.Column
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
-import androidx.glance.layout.fillMaxHeight
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
@@ -37,319 +36,500 @@ import androidx.glance.layout.size
 import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
+import androidx.glance.text.TextAlign
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.shumail.healthwidget.R
-import com.shumail.healthwidget.data.TimerRepository
-import com.shumail.healthwidget.model.TimerModel
-import com.shumail.healthwidget.model.TimerStatus
+import com.shumail.healthwidget.data.MedicationRepository
+import com.shumail.healthwidget.model.ActiveTimerState
+import com.shumail.healthwidget.model.ActiveTimerStatus
+import com.shumail.healthwidget.model.DoseItem
+import com.shumail.healthwidget.model.MedicationId
 import com.shumail.healthwidget.ui.MainActivity
+import java.time.LocalDate
 
 class EyeCareWidget : GlanceAppWidget() {
 
-    companion object {
-        private val COMPACT_SIZE = DpSize(180.dp, 100.dp)
-        private val MEDIUM_SIZE = DpSize(260.dp, 110.dp)
-        private val TABLET_4X2 = DpSize(380.dp, 130.dp)
-    }
-
-    override val sizeMode = SizeMode.Responsive(
-        setOf(COMPACT_SIZE, MEDIUM_SIZE, TABLET_4X2)
-    )
+    override val sizeMode = SizeMode.Exact
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val repository = TimerRepository.getInstance(context)
-        val timer = repository.getTimerModel()
+        val repository = MedicationRepository.getInstance(context)
+        val today = LocalDate.now()
+        val doses = repository.getDosesForDate(today)
+        val timer = repository.getActiveTimer()
+        val dayOfCourse = repository.getDayOfCourse(today)
 
         provideContent {
             GlanceTheme {
-                val size = LocalSize.current
-                WidgetContent(context, timer, size)
+                WidgetCard(context, doses, timer, dayOfCourse)
             }
         }
     }
 }
 
-@androidx.compose.runtime.Composable
-private fun WidgetContent(context: Context, timer: TimerModel, size: DpSize) {
-    val effectiveStatus = timer.getEffectiveStatus()
-    val isTablet = size.width >= 360.dp
+private val KEY_MEDICATION = ActionParameters.Key<String>("medication")
+private val KEY_DOSE_INDEX = ActionParameters.Key<Int>("doseIndex")
 
-    val bgColor = Color(0xFF142220)
-    val cardSurface = Color(0xFF1F3230)
-    val tealAccent = Color(0xFF5FE5D2)
-    val onBg = Color(0xFFE2E9E7)
-    val subText = Color(0xFFA0B2AF)
-    val warmFinish = Color(0xFFFFD56B)
+@androidx.compose.runtime.Composable
+private fun WidgetCard(
+    context: Context,
+    todayDoses: List<DoseItem>,
+    timer: ActiveTimerState,
+    dayOfCourse: Int
+) {
+    val bgDark = Color(0xFF0F172A)      // Deep slate / midnight navy
+    val cardSurface = Color(0xFF1E293B) // Card surface
+    val textPrimary = Color(0xFFF8FAFC)
+    val textSecondary = Color(0xFF94A3B8)
+
+    // Determine current widget state
+    val timerStatus = timer.getEffectiveStatus()
 
     Box(
         modifier = GlanceModifier
             .fillMaxSize()
-            .background(bgColor)
-            .cornerRadius(18.dp)
+            .background(bgDark)
+            .cornerRadius(20.dp)
             .padding(12.dp)
-            .clickable(actionStartActivity<MainActivity>())
+            .clickable(actionStartActivity<MainActivity>()),
+        contentAlignment = Alignment.Center
     ) {
-        when (effectiveStatus) {
-            TimerStatus.READY -> {
-                ReadyLayout(
-                    isTablet = isTablet,
-                    surfaceColor = cardSurface,
-                    accentColor = tealAccent,
-                    textColor = onBg,
-                    subColor = subText
-                )
-            }
-            TimerStatus.RUNNING -> {
-                RunningLayout(
+        when {
+            // STATE 3: ⏱ 10-minute countdown active for AQUAWELL
+            timerStatus == ActiveTimerStatus.RUNNING -> {
+                AquawellCountdownState(
                     timer = timer,
-                    isTablet = isTablet,
-                    accentColor = tealAccent,
-                    textColor = onBg,
-                    subColor = subText
+                    textPrimary = textPrimary,
+                    textSecondary = textSecondary
                 )
             }
-            TimerStatus.FINISHED -> {
-                FinishedLayout(
-                    isTablet = isTablet,
-                    accentColor = warmFinish,
-                    textColor = onBg,
-                    subColor = subText
+
+            // STATE 4: 💧 Timer finished, AQUAWELL is due
+            timerStatus == ActiveTimerStatus.FINISHED_AQUAWELL_DUE -> {
+                AquawellDueState(
+                    doseIndex = timer.aquawellDoseIndex,
+                    textPrimary = textPrimary,
+                    textSecondary = textSecondary
                 )
+            }
+
+            // Otherwise, check scheduled doses for today
+            else -> {
+                // Find next pending dose
+                val nextDose = todayDoses.firstOrNull { !it.isTaken }
+                if (nextDose != null) {
+                    when (nextDose.medicationId) {
+                        // STATE 1: 💊 MULMIN Due
+                        MedicationId.MULMIN -> {
+                            MulminDueState(
+                                dose = nextDose,
+                                textPrimary = textPrimary,
+                                textSecondary = textSecondary
+                            )
+                        }
+                        // STATE 2: 🔴 KETOGATE Due
+                        MedicationId.KETOGATE -> {
+                            KetogateDueState(
+                                dose = nextDose,
+                                textPrimary = textPrimary,
+                                textSecondary = textSecondary
+                            )
+                        }
+                        // AQUAWELL Scheduled / Due
+                        MedicationId.AQUAWELL -> {
+                            AquawellScheduledState(
+                                dose = nextDose,
+                                textPrimary = textPrimary,
+                                textSecondary = textSecondary
+                            )
+                        }
+                    }
+                } else {
+                    // All doses completed today or course not active
+                    AllDosesDoneState(
+                        dayOfCourse = dayOfCourse,
+                        textPrimary = textPrimary,
+                        textSecondary = textSecondary
+                    )
+                }
             }
         }
     }
 }
 
+// ----------------------------------------------------
+// STATE 1: MULMIN DUE
+// ----------------------------------------------------
 @androidx.compose.runtime.Composable
-private fun ReadyLayout(
-    isTablet: Boolean,
-    surfaceColor: Color,
-    accentColor: Color,
-    textColor: Color,
-    subColor: Color
+private fun MulminDueState(
+    dose: DoseItem,
+    textPrimary: Color,
+    textSecondary: Color
 ) {
-    Row(
+    val amberAccent = Color(0xFFF59E0B)
+
+    Column(
         modifier = GlanceModifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(
-            modifier = GlanceModifier.defaultWeight().fillMaxHeight(),
-            verticalAlignment = Alignment.CenterVertically
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Image(
-                    provider = ImageProvider(R.drawable.ic_eye_care),
-                    contentDescription = "Eye Care",
-                    modifier = GlanceModifier.size(20.dp)
-                )
-                Spacer(modifier = GlanceModifier.width(6.dp))
-                Text(
-                    text = "Eye Care Timer",
-                    style = TextStyle(
-                        color = ColorProvider(accentColor),
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                )
-            }
-            Spacer(modifier = GlanceModifier.height(4.dp))
+            Image(
+                provider = ImageProvider(R.drawable.ic_pill),
+                contentDescription = "Tablet",
+                modifier = GlanceModifier.size(20.dp)
+            )
+            Spacer(modifier = GlanceModifier.width(6.dp))
             Text(
-                text = "10-Minute Break",
+                text = "MULMIN",
                 style = TextStyle(
-                    color = ColorProvider(textColor),
-                    fontSize = if (isTablet) 20.sp else 16.sp,
+                    color = ColorProvider(amberAccent),
+                    fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
                 )
             )
-            if (isTablet) {
-                Text(
-                    text = "Rest your eyes & look 20 ft away",
-                    style = TextStyle(
-                        color = ColorProvider(subColor),
-                        fontSize = 12.sp
-                    )
-                )
-            }
         }
-
-        Spacer(modifier = GlanceModifier.width(8.dp))
-
+        Spacer(modifier = GlanceModifier.height(2.dp))
+        Text(
+            text = "Morning Tablet",
+            style = TextStyle(
+                color = ColorProvider(textSecondary),
+                fontSize = 11.sp
+            )
+        )
+        Spacer(modifier = GlanceModifier.height(10.dp))
         Button(
-            text = "Start 10m",
-            onClick = actionRunCallback<StartTimerActionCallback>(),
-            colors = ButtonDefaults.buttonColors(
-                backgroundColor = ColorProvider(accentColor),
-                contentColor = ColorProvider(Color(0xFF003731))
+            text = "✓ MARK TAKEN",
+            onClick = actionRunCallback<MarkDoseTakenGlanceActionCallback>(
+                actionParametersOf(
+                    KEY_MEDICATION to MedicationId.MULMIN.name,
+                    KEY_DOSE_INDEX to dose.doseIndex
+                )
             ),
-            modifier = GlanceModifier.padding(vertical = 4.dp)
+            colors = ButtonDefaults.buttonColors(
+                backgroundColor = ColorProvider(amberAccent),
+                contentColor = ColorProvider(Color(0xFF261800))
+            ),
+            modifier = GlanceModifier.fillMaxWidth().height(42.dp)
         )
     }
 }
 
+// ----------------------------------------------------
+// STATE 2: KETOGATE DUE
+// ----------------------------------------------------
 @androidx.compose.runtime.Composable
-private fun RunningLayout(
-    timer: TimerModel,
-    isTablet: Boolean,
-    accentColor: Color,
-    textColor: Color,
-    subColor: Color
+private fun KetogateDueState(
+    dose: DoseItem,
+    textPrimary: Color,
+    textSecondary: Color
 ) {
-    val remaining = timer.formattedRemaining()
+    val roseAccent = Color(0xFFF43F5E)
 
-    Row(
+    Column(
         modifier = GlanceModifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(
-            modifier = GlanceModifier.defaultWeight().fillMaxHeight(),
-            verticalAlignment = Alignment.CenterVertically
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Image(
-                    provider = ImageProvider(R.drawable.ic_timer),
-                    contentDescription = "Running",
-                    modifier = GlanceModifier.size(18.dp)
-                )
-                Spacer(modifier = GlanceModifier.width(6.dp))
-                Text(
-                    text = "Timer Running",
-                    style = TextStyle(
-                        color = ColorProvider(accentColor),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                )
-            }
-            Spacer(modifier = GlanceModifier.height(2.dp))
+            Image(
+                provider = ImageProvider(R.drawable.ic_eye_care),
+                contentDescription = "Eye drops",
+                modifier = GlanceModifier.size(20.dp)
+            )
+            Spacer(modifier = GlanceModifier.width(6.dp))
             Text(
-                text = remaining,
+                text = "KETOGATE",
                 style = TextStyle(
-                    color = ColorProvider(textColor),
-                    fontSize = if (isTablet) 28.sp else 22.sp,
+                    color = ColorProvider(roseAccent),
+                    fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
                 )
             )
-            if (isTablet) {
-                Text(
-                    text = "Eye protection timer in progress",
-                    style = TextStyle(
-                        color = ColorProvider(subColor),
-                        fontSize = 11.sp
-                    )
-                )
-            }
         }
-
-        Spacer(modifier = GlanceModifier.width(8.dp))
-
+        Spacer(modifier = GlanceModifier.height(2.dp))
+        Text(
+            text = dose.label,
+            style = TextStyle(
+                color = ColorProvider(textSecondary),
+                fontSize = 11.sp
+            )
+        )
+        Spacer(modifier = GlanceModifier.height(10.dp))
         Button(
-            text = "Cancel",
-            onClick = actionRunCallback<CancelTimerActionCallback>(),
+            text = "✓ TAKEN (Start 10m)",
+            onClick = actionRunCallback<MarkDoseTakenGlanceActionCallback>(
+                actionParametersOf(
+                    KEY_MEDICATION to MedicationId.KETOGATE.name,
+                    KEY_DOSE_INDEX to dose.doseIndex
+                )
+            ),
             colors = ButtonDefaults.buttonColors(
-                backgroundColor = ColorProvider(Color(0xFF3B4D4A)),
+                backgroundColor = ColorProvider(roseAccent),
                 contentColor = ColorProvider(Color(0xFFFFFFFF))
             ),
-            modifier = GlanceModifier.padding(vertical = 4.dp)
+            modifier = GlanceModifier.fillMaxWidth().height(42.dp)
         )
     }
 }
 
+// ----------------------------------------------------
+// STATE 3: ⏱ AQUAWELL 10-MINUTE COUNTDOWN
+// ----------------------------------------------------
 @androidx.compose.runtime.Composable
-private fun FinishedLayout(
-    isTablet: Boolean,
-    accentColor: Color,
-    textColor: Color,
-    subColor: Color
+private fun AquawellCountdownState(
+    timer: ActiveTimerState,
+    textPrimary: Color,
+    textSecondary: Color
 ) {
-    Row(
+    val cyanAccent = Color(0xFF38BDF8)
+    val remaining = timer.formattedRemaining()
+
+    Column(
         modifier = GlanceModifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(
-            modifier = GlanceModifier.defaultWeight().fillMaxHeight(),
-            verticalAlignment = Alignment.CenterVertically
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Image(
-                    provider = ImageProvider(R.drawable.ic_check_circle),
-                    contentDescription = "Finished",
-                    modifier = GlanceModifier.size(20.dp)
-                )
-                Spacer(modifier = GlanceModifier.width(6.dp))
-                Text(
-                    text = "Time's Up!",
-                    style = TextStyle(
-                        color = ColorProvider(accentColor),
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                )
-            }
-            Spacer(modifier = GlanceModifier.height(2.dp))
+            Image(
+                provider = ImageProvider(R.drawable.ic_timer),
+                contentDescription = "Timer",
+                modifier = GlanceModifier.size(18.dp)
+            )
+            Spacer(modifier = GlanceModifier.width(6.dp))
             Text(
-                text = "Rest Your Eyes",
+                text = "AQUAWELL IN",
                 style = TextStyle(
-                    color = ColorProvider(textColor),
-                    fontSize = if (isTablet) 20.sp else 16.sp,
+                    color = ColorProvider(cyanAccent),
+                    fontSize = 13.sp,
                     fontWeight = FontWeight.Bold
                 )
             )
-            Text(
-                text = if (isTablet) "Look 20 feet away for 20 seconds now" else "Look away from screen",
-                style = TextStyle(
-                    color = ColorProvider(subColor),
-                    fontSize = 11.sp
-                )
-            )
         }
-
-        Spacer(modifier = GlanceModifier.width(8.dp))
-
+        Spacer(modifier = GlanceModifier.height(2.dp))
+        Text(
+            text = remaining,
+            style = TextStyle(
+                color = ColorProvider(textPrimary),
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold
+            )
+        )
+        Spacer(modifier = GlanceModifier.height(8.dp))
         Button(
-            text = "Reset",
-            onClick = actionRunCallback<ResetTimerActionCallback>(),
+            text = "Open Timer",
+            onClick = actionStartActivity<MainActivity>(),
             colors = ButtonDefaults.buttonColors(
-                backgroundColor = ColorProvider(accentColor),
-                contentColor = ColorProvider(Color(0xFF332000))
+                backgroundColor = ColorProvider(Color(0xFF334155)),
+                contentColor = ColorProvider(cyanAccent)
             ),
-            modifier = GlanceModifier.padding(vertical = 4.dp)
+            modifier = GlanceModifier.fillMaxWidth().height(38.dp)
         )
     }
 }
 
-class StartTimerActionCallback : ActionCallback {
-    override suspend fun onAction(
-        context: Context,
-        glanceId: GlanceId,
-        parameters: ActionParameters
+// ----------------------------------------------------
+// STATE 4: 💧 AQUAWELL TIMER FINISHED / DUE
+// ----------------------------------------------------
+@androidx.compose.runtime.Composable
+private fun AquawellDueState(
+    doseIndex: Int,
+    textPrimary: Color,
+    textSecondary: Color
+) {
+    val cyanAccent = Color(0xFF0284C7)
+    val lightCyan = Color(0xFF38BDF8)
+
+    Column(
+        modifier = GlanceModifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        val repository = TimerRepository.getInstance(context)
-        repository.startTimer()
-        EyeCareWidget().update(context, glanceId)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Image(
+                provider = ImageProvider(R.drawable.ic_drop),
+                contentDescription = "Drop",
+                modifier = GlanceModifier.size(20.dp)
+            )
+            Spacer(modifier = GlanceModifier.width(6.dp))
+            Text(
+                text = "AQUAWELL DUE",
+                style = TextStyle(
+                    color = ColorProvider(lightCyan),
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            )
+        }
+        Spacer(modifier = GlanceModifier.height(2.dp))
+        Text(
+            text = "10-min interval complete",
+            style = TextStyle(
+                color = ColorProvider(textSecondary),
+                fontSize = 11.sp
+            )
+        )
+        Spacer(modifier = GlanceModifier.height(10.dp))
+        Button(
+            text = "✓ MARK TAKEN",
+            onClick = actionRunCallback<MarkDoseTakenGlanceActionCallback>(
+                actionParametersOf(
+                    KEY_MEDICATION to MedicationId.AQUAWELL.name,
+                    KEY_DOSE_INDEX to doseIndex
+                )
+            ),
+            colors = ButtonDefaults.buttonColors(
+                backgroundColor = ColorProvider(cyanAccent),
+                contentColor = ColorProvider(Color(0xFFFFFFFF))
+            ),
+            modifier = GlanceModifier.fillMaxWidth().height(42.dp)
+        )
     }
 }
 
-class CancelTimerActionCallback : ActionCallback {
-    override suspend fun onAction(
-        context: Context,
-        glanceId: GlanceId,
-        parameters: ActionParameters
+// ----------------------------------------------------
+// STANDALONE / SCHEDULED AQUAWELL
+// ----------------------------------------------------
+@androidx.compose.runtime.Composable
+private fun AquawellScheduledState(
+    dose: DoseItem,
+    textPrimary: Color,
+    textSecondary: Color
+) {
+    val cyanAccent = Color(0xFF0284C7)
+    val lightCyan = Color(0xFF38BDF8)
+
+    Column(
+        modifier = GlanceModifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        val repository = TimerRepository.getInstance(context)
-        repository.cancelTimer()
-        EyeCareWidget().update(context, glanceId)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Image(
+                provider = ImageProvider(R.drawable.ic_drop),
+                contentDescription = "Drop",
+                modifier = GlanceModifier.size(20.dp)
+            )
+            Spacer(modifier = GlanceModifier.width(6.dp))
+            Text(
+                text = "AQUAWELL",
+                style = TextStyle(
+                    color = ColorProvider(lightCyan),
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            )
+        }
+        Spacer(modifier = GlanceModifier.height(2.dp))
+        Text(
+            text = dose.label,
+            style = TextStyle(
+                color = ColorProvider(textSecondary),
+                fontSize = 11.sp
+            )
+        )
+        Spacer(modifier = GlanceModifier.height(10.dp))
+        Button(
+            text = "✓ MARK TAKEN",
+            onClick = actionRunCallback<MarkDoseTakenGlanceActionCallback>(
+                actionParametersOf(
+                    KEY_MEDICATION to MedicationId.AQUAWELL.name,
+                    KEY_DOSE_INDEX to dose.doseIndex
+                )
+            ),
+            colors = ButtonDefaults.buttonColors(
+                backgroundColor = ColorProvider(cyanAccent),
+                contentColor = ColorProvider(Color(0xFFFFFFFF))
+            ),
+            modifier = GlanceModifier.fillMaxWidth().height(42.dp)
+        )
     }
 }
 
-class ResetTimerActionCallback : ActionCallback {
+// ----------------------------------------------------
+// STATE 5: ALL DOSES COMPLETED
+// ----------------------------------------------------
+@androidx.compose.runtime.Composable
+private fun AllDosesDoneState(
+    dayOfCourse: Int,
+    textPrimary: Color,
+    textSecondary: Color
+) {
+    val greenAccent = Color(0xFF10B981)
+
+    Column(
+        modifier = GlanceModifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Image(
+            provider = ImageProvider(R.drawable.ic_check_circle),
+            contentDescription = "Completed",
+            modifier = GlanceModifier.size(26.dp)
+        )
+        Spacer(modifier = GlanceModifier.height(6.dp))
+        Text(
+            text = "All Doses Done",
+            style = TextStyle(
+                color = ColorProvider(greenAccent),
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold
+            )
+        )
+        Spacer(modifier = GlanceModifier.height(2.dp))
+        Text(
+            text = if (dayOfCourse in 1..60) "Day $dayOfCourse complete 🎉" else "Course Completed",
+            style = TextStyle(
+                color = ColorProvider(textSecondary),
+                fontSize = 11.sp
+            )
+        )
+        Spacer(modifier = GlanceModifier.height(10.dp))
+        Button(
+            text = "Open App",
+            onClick = actionStartActivity<MainActivity>(),
+            colors = ButtonDefaults.buttonColors(
+                backgroundColor = ColorProvider(Color(0xFF1E293B)),
+                contentColor = ColorProvider(textPrimary)
+            ),
+            modifier = GlanceModifier.fillMaxWidth().height(38.dp)
+        )
+    }
+}
+
+// ----------------------------------------------------
+// ACTION CALLBACK
+// ----------------------------------------------------
+class MarkDoseTakenGlanceActionCallback : ActionCallback {
     override suspend fun onAction(
         context: Context,
         glanceId: GlanceId,
         parameters: ActionParameters
     ) {
-        val repository = TimerRepository.getInstance(context)
-        repository.resetTimer()
+        val medName = parameters[KEY_MEDICATION] ?: return
+        val doseIdx = parameters[KEY_DOSE_INDEX] ?: 0
+        val medId = try {
+            MedicationId.valueOf(medName)
+        } catch (_: Exception) {
+            return
+        }
+        val repository = MedicationRepository.getInstance(context)
+        repository.markDoseTaken(medId, doseIdx)
         EyeCareWidget().update(context, glanceId)
     }
 }

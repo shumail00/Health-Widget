@@ -36,12 +36,15 @@
             </intent-filter>
         </activity>
 
-        <!-- Alarm receiver for 10-minute timer completion -->
+        <!-- Alarm receiver for 10-minute timer completion and dose actions -->
         <receiver
             android:name=".alarm.TimerAlarmReceiver"
             android:exported="false">
             <intent-filter>
                 <action android:name="com.shumail.healthwidget.ACTION_TIMER_FINISHED" />
+                <action android:name="com.shumail.healthwidget.ACTION_AQUAWELL_REPEAT_REMINDER" />
+                <action android:name="com.shumail.healthwidget.ACTION_DOSE_ALARM" />
+                <action android:name="com.shumail.healthwidget.ACTION_MARK_TAKEN" />
             </intent-filter>
         </receiver>
 

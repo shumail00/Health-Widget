@@ -10,6 +10,7 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -34,21 +35,25 @@ private val LightColorScheme = lightColorScheme(
 
 private val DarkColorScheme = darkColorScheme(
     primary = MintAccent,
-    onPrimary = TealOnContainer,
-    primaryContainer = TealPrimary,
-    onPrimaryContainer = TealContainer,
-    secondary = TealSecondaryContainer,
-    onSecondary = TealOnSecondaryContainer,
-    background = TealOnBackground,
-    onBackground = TealBackground,
-    surface = TealOnSurface,
-    onSurface = TealBackground
+    onPrimary = Color(0xFF003731),
+    primaryContainer = Color(0xFF115E59),
+    onPrimaryContainer = Color(0xFFCCFBF1),
+    secondary = Color(0xFF94A3B8),
+    onSecondary = Color(0xFF0F172A),
+    secondaryContainer = Color(0xFF1E293B),
+    onSecondaryContainer = Color(0xFFF1F5F9),
+    background = DarkBackground,
+    onBackground = Color(0xFFF8FAFC),
+    surface = DarkSurface,
+    onSurface = Color(0xFFF8FAFC),
+    surfaceVariant = DarkSurfaceVariant,
+    onSurfaceVariant = Color(0xFF94A3B8)
 )
 
 @Composable
 fun HealthWidgetTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false, // Set false to preserve distinctive eye-care brand identity
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
@@ -65,7 +70,7 @@ fun HealthWidgetTheme(
         SideEffect {
             val window = (view.context as? Activity)?.window
             if (window != null) {
-                window.statusBarColor = colorScheme.primary.toArgb()
+                window.statusBarColor = colorScheme.background.toArgb()
                 WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
             }
         }

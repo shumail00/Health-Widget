@@ -7,5 +7,6 @@ class HealthWidgetApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         NotificationHelper.createNotificationChannel(this)
+        com.shumail.healthwidget.data.MedicationRepository.getInstance(this).reconcileActiveTimer()
     }
 }
